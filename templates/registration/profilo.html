@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Il Mio Profilo{% endblock %}
+
+{% block content %}
+    <h2>{{ title }}</h2>
+    <hr>
+    <!-- Qui mettiamo il tuo messaggio di benvenuto -->
+    {% if 'login' in request.GET %}
+        <div class="alert alert-success">
+            Login effettuato con successo! Bentornato, {{ user.username }}.
+        </div>
+    {% endif %}
+
+    
+    <ul>
+        <li><strong>Username:</strong> {{ user.username }}</li>
+        <li><strong>Email:</strong> {{ user.email }}</li>
+        <li><strong>Ruolo:</strong> {{ user.profile.get_ruolo_display }}</li>
+    </ul>
+
+    <!-- Spiegazione: Controlliamo il ruolo dell'utente per mostrare la sezione corretta. -->
+    {% if user.profile.ruolo == 'venditore' %}
+        
+        <h3>Le tue Aste Pubblicate</h3>
+        {% for asta in aste_create %}
+            <div class="card mb-2">
+                <div class="card-body d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'aste:dettaglio_asta' asta.pk %}">{{ asta.titolo }}</a>
+                        - <small>Stato: {{ asta.get_stato_display }}</small>
+                    </div>
+                    
+                    {% if asta.offerte.count == 0 and asta.stato == 'attiva' %}
+                        <div>
+                            <a href="{% url 'aste:modifica_asta' asta.pk %}" class="btn btn-sm btn-warning">Modifica</a>
+                            <a href="{% url 'aste:elimina_asta' asta.pk %}" class="btn btn-sm btn-danger">Elimina</a>
+                        </div>
+                    {% endif %}
+                    </div>
+            </div>
+        {% empty %}
+            <p>Non hai ancora pubblicato nessuna asta.</p>
+        {% endfor %}
+
+    {% elif user.profile.ruolo == 'acquirente' %}
+
+        <h3>Le tue Aste Vinte</h3>
+        {% for asta in aste_vinte %}
+            <p><a href="{% url 'aste:dettaglio_asta' asta.pk %}">{{ asta.titolo }}</a></p>
+        {% empty %}
+            <p>Non hai ancora vinto nessuna asta.</p>
+        {% endfor %}
+        <hr>
+        
+        <h3 class="mb-4">Lista dei Desideri con Suggerimenti</h3>
+
+        <div class="row mb-2">
+            <div class="col-md-4"><h5>Lista dei Desideri</h5></div>
+            <div class="col-md-8"><h5>Altri utenti hanno acquistato anche:</h5></div>
+        </div>
+        {% for desiderio, suggerimenti in lista_desideri_con_raccomandazioni %}
+            <!-- Ogni coppia desiderio/suggerimenti è una riga principale (ROW) -->
+            <div class="row mb-4 align-items-start">
+
+                <!-- 1. COLONNA SINISTRA (Lista dei Desideri) -->
+                <!-- Includiamo la card direttamente. L'include contiene già <div class="col-md-4"> -->
+                <!-- Questo occuperà 4 delle 12 colonne della riga principale. -->
+                {% include "aste/_asta_card.html" with asta=desiderio %}
+
+                <!-- 2. COLONNA DESTRA (Suggerimenti) -->
+                <!-- Creiamo una colonna che occupa i restanti 8 spazi (4 + 8 = 12) -->
+                <div class="col-md-8">
+                    <!-- All'interno di questa colonna, creiamo una NUOVA RIGA (row) per i suggerimenti. -->
+                    <!-- Questo è fondamentale per la nidificazione corretta. -->
+                    <div class="row">
+                        {% for suggerita in suggerimenti %}
+                            <!-- Ora includiamo le card dei suggerimenti. -->
+                            <!-- Ognuna, con il suo "col-md-4", occuperà 1/3 dello spazio -->
+                            <!-- della riga nidificata, disponendole una accanto all'altra. -->
+                            {% include "aste/_asta_card.html" with asta=suggerita %}
+                        {% empty %}
+                            <div class="col-12">
+                                <p>Nessun suggerimento disponibile.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% empty %}
+            <p>La tua lista dei desideri è vuota.</p>
+        {% endfor %}          
+
+
+        <hr>
+
+        <h3>Le tue Offerte Recenti</h3>
+        {% for offerta in offerte_fatte %}
+            <p>Hai offerto €{{ offerta.importo }} per l'asta <a href="{% url 'aste:dettaglio_asta' offerta.asta.pk %}">{{ offerta.asta.titolo }}</a></p>
+        {% empty %}
+            <p>Non hai ancora fatto nessuna offerta.</p>
+        {% endfor %}
+
+    {% endif %}
+    <!-- In futuro qui aggiungeremo le liste di aste, offerte, etc. -->
+{% endblock %}

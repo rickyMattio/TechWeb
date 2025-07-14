@@ -1,0 +1,16 @@
+
+{% extends "base.html" %}
+
+{% block title %}Homepage Aste{% endblock %}
+
+{% block content %}
+<h1>Aste attualmente attive</h1>
+<div class="row">
+    <!-- Spiegazione: ListView ci fornisce la lista di aste nella variabile 'aste_list' -->
+    {% for asta in aste_list %}
+        {% include 'aste/_asta_card.html' %}
+    {% empty %}
+        <p class="col">Al momento non ci sono aste attive.</p>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{# Il titolo della scheda del browser è dinamico #}
+{% block title %}{% if object %}Modifica Asta{% else %}Crea una Nuova Asta{% endif %}{% endblock %}
+
+{% load crispy_forms_tags %}
+{% block content %}
+{# Anche il titolo H2 nella pagina è dinamico #}
+<h2>{% if object %}Modifica: {{ object.titolo }}{% else %}Crea una Nuova Asta{% endif %}</h2>
+<form method="post" enctype="multipart/form-data">
+    <!-- Spiegazione: `enctype="multipart/form-data"` è OBBLIGATORIO
+         quando un form deve gestire il caricamento di file (come la nostra immagine). -->
+    {% csrf_token %}
+    {{ form|crispy }}
+    {% if object %}
+        {# Se 'object' esiste, siamo in modalità MODIFICA #}
+        <button type="submit" class="btn btn-warning mt-3">Conferma Modifica</button>
+    {% else %}
+        {# Altrimenti, siamo in modalità CREAZIONE #}
+        <button type="submit" class="btn btn-success mt-3">Crea Asta</button>
+    {% endif %}
+</form>
+{% endblock %}

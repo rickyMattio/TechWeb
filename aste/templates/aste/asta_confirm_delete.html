@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Conferma Eliminazione{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Sei assolutamente sicuro?</h2>
+    <hr>
+    <p>Stai per eliminare definitivamente la tua asta: <strong>"{{ object.titolo }}"</strong>.</p>
+    <p class="text-danger">Questa azione non può essere annullata.</p>
+
+    <form method="post">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Sì, Elimina Definitivamente</button>
+        <a href="{% url 'aste:profilo' %}" class="btn btn-secondary">Annulla</a>
+    </form>
+</div>
+{% endblock %}

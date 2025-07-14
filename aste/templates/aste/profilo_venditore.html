@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2>Profilo di {{ venditore.username }}</h2>
+    
+    {% if media_voto %}
+        <p>Media feedback: <strong>{{ media_voto|floatformat:1 }}/5</strong></p>
+    {% else %}
+        <p>Questo venditore non ha ancora ricevuto feedback.</p>
+    {% endif %}
+
+    <hr>
+    <h4>Feedback ricevuti:</h4>
+    {% for feedback in feedback_list %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <strong>{{ feedback.autore.username }}</strong> ha lasciato 
+                <strong>{{ feedback.voto }}/5 stelle</strong> per 
+                <em>{{ feedback.asta.titolo }}</em><br>
+                <small>{{ feedback.data_creazione|date:"d/m/Y H:i" }}</small>
+                <p>{{ feedback.commento }}</p>
+            </div>
+        </div>
+    {% empty %}
+        <p>Nessun feedback disponibile.</p>
+    {% endfor %}
+</div>
+{% endblock %}

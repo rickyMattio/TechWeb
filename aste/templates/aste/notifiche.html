@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Le Tue Notifiche{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Le Tue Notifiche</h2>
+    <hr>
+
+    {% for notifica in notifiche_list %}
+        <div class="alert alert-secondary" role="alert">
+            <p class="mb-1">{{ notifica.messaggio }}</p>
+            <small class="text-muted">{{ notifica.data_creazione|date:"d M Y, H:i" }}</small>
+
+            {# Se la notifica è legata a un'asta, mostriamo il link #}
+            {% if notifica.asta_riferimento %}
+                <a href="{% url 'aste:dettaglio_asta' notifica.asta_riferimento.pk %}" class="alert-link float-right">Vedi asta</a>
+            {% endif %}
+        </div>
+    {% empty %}
+        <p>Non hai nessuna notifica al momento.</p>
+    {% endfor %}
+
+    {% if is_paginated %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Precedente</a></li>
+            {% endif %}
+            <li class="page-item disabled"><span class="page-link">Pagina {{ page_obj.number }} di {{ page_obj.paginator.num_pages }}</span></li>
+            {% if page_obj.has_next %}
+                <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Successiva</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
