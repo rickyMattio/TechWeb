@@ -14,6 +14,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.utils import timezone
 from datetime import timedelta
+from django.db.models.functions import Coalesce
 
 
 
@@ -35,7 +36,15 @@ class HomeAsteView(ListView):
         # Spiegazione: Stiamo sovrascrivendo il metodo `get_queryset`.
         # Invece di prendere TUTTE le aste (`Asta.objects.all()`),
         # prendiamo solo quelle 'attive' e le ordiniamo per data di fine.
-        return Asta.objects.filter(stato='attiva').order_by('data_fine')
+        # Ora anche la homepage calcola il prezzo_attuale per ogni asta,
+        # usando il prezzo base come default se non ci sono offerte.
+        return Asta.objects.filter(stato='attiva').annotate(
+            prezzo_attuale=Case(
+                When(offerte__importo__isnull=False, then=Max('offerte__importo')),
+                default=F('prezzo_base'),
+                output_field=DecimalField()
+            )
+        ).order_by('data_fine')
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -128,20 +137,25 @@ class ProfiloView(LoginRequiredMixin, TemplateView):
         # Logica specifica per il ruolo ACQUIRENTE
         if user.profile.ruolo == 'acquirente':
             desideri = user.lista_desideri.all()
+            desideri_ids = list(desideri.values_list('id', flat=True))
             context['offerte_fatte'] = Offerta.objects.filter(acquirente=user).order_by('-data_offerta')
             context['lista_desideri'] = user.lista_desideri.all()
             context['aste_vinte'] = Asta.objects.get_aste_vinte(user)
             # Raccomandazioni semplificate: per ogni asta nei desideri, suggeriamo 3 aste concluse
             # della stessa categoria, vinte da altri utenti
+            aste_vinte_ids = context['aste_vinte'].values_list('id', flat=True)
             raccomandazioni = {}
             for asta in desideri:
                 altre = Asta.objects.filter(
                     categoria=asta.categoria,
-                    stato='conclusa'
+                    stato='conclusa',
+                    offerte__isnull=False
                 ).exclude(
                     pk=asta.pk
                 ).exclude(
-                    offerte__acquirente=user
+                    pk__in=aste_vinte_ids
+                ).exclude(
+                    pk__in=desideri_ids
                 ).distinct()[:3]
                 raccomandazioni[asta.pk] = altre
             context['lista_desideri_con_raccomandazioni'] = [
@@ -345,13 +359,22 @@ class RisultatiRicercaView(ListView):
     paginate_by = 10 # Mostriamo 10 risultati per pagina
 
     def get_queryset(self):
+       
+        offerte_prefetch = Prefetch(
+            'offerte',
+            queryset=Offerta.objects.select_related('acquirente').order_by('-importo')
+        )
         # Spiegazione: Questo è il cuore della ricerca.
         # Iniziamo con un queryset di tutte le aste.
-        queryset = super().get_queryset().annotate(
-            prezzo_attuale=Max('offerte__importo', default=F('prezzo_base')),
+        queryset = Asta.objects.annotate(
+            prezzo_attuale=Coalesce(
+                Max('offerte__importo'), 
+                F('prezzo_base'), 
+                0.0, 
+                output_field=DecimalField()
+            ),
             reputazione_venditore=Avg('venditore__feedback_ricevuti__voto')
-        )
-        
+        ).prefetch_related(offerte_prefetch)
         # Recuperiamo i dati dal form passato come parametri GET.
         form = SearchForm(self.request.GET)
         
@@ -368,28 +391,26 @@ class RisultatiRicercaView(ListView):
             if not includi_concluse:
                 # Filtro di base: mostra solo le aste attive.
                 queryset = queryset.filter(stato='attiva')
-
             if keyword:
                 # Filtro per parola chiave su titolo.
-                
-                queryset = queryset.filter(
-                    Q(titolo__icontains=keyword)
-                )
-            
+                queryset = queryset.filter(titolo__icontains=keyword)
             if categoria:
                 queryset = queryset.filter(categoria=categoria)
                 
-            if prezzo_min:
-                # Filtra le aste il cui prezzo attuale è maggiore o uguale al minimo
+            # Applichiamo il filtro del prezzo minimo se è stato fornito.
+            # Rimuoviamo il controllo "> 0" per permettere filtri che iniziano da zero.
+            if prezzo_min is not None:
                 queryset = queryset.filter(prezzo_attuale__gte=prezzo_min)
-            if prezzo_max:
-                # Filtra le aste il cui prezzo attuale è minore o uguale al massimo
+
+            # Il filtro del prezzo massimo è già corretto, ma lo manteniamo per coerenza.
+            if prezzo_max is not None:
                 queryset = queryset.filter(prezzo_attuale__lte=prezzo_max)
+
             if durata:
                 # Calcola la data futura e filtra le aste che scadono prima di quella data
                 data_limite = timezone.now() + timedelta(days=int(durata))
                 queryset = queryset.filter(data_fine__lte=data_limite)
-
+            
             if ordina_per:
                 if ordina_per == 'reputazione':
                     queryset = queryset.order_by('-reputazione_venditore', 'data_fine')
@@ -397,9 +418,9 @@ class RisultatiRicercaView(ListView):
                     queryset = queryset.order_by(ordina_per)
             else:
                 queryset = queryset.order_by('data_fine')
-        
-        return queryset
-
+        return queryset   
+    
+    
     def get_context_data(self, **kwargs):
         # Passiamo il form al contesto per poter mostrare i filtri applicati.
         context = super().get_context_data(**kwargs)
@@ -419,6 +440,18 @@ class RisultatiRicercaView(ListView):
             max_price = int(max_price_agg['max_val'])
             
         context['max_prezzo_asta'] = max_price
+        
+        if self.request.user.is_authenticated:
+            # Creiamo un 'set' (un tipo di lista molto veloce per le ricerche) 
+            # contenente gli ID di tutte le aste nella pagina corrente che l'utente sta vincendo.
+            aste_vincenti = set(
+                asta.pk for asta in context['aste_list'] 
+                if asta.offerte.first() and asta.offerte.first().acquirente == self.request.user
+            )
+            context['aste_vincenti_utente'] = aste_vincenti
+        else:
+            # Se l'utente non è loggato, passiamo una lista vuota per sicurezza
+            context['aste_vincenti_utente'] = set()
         return context
     
 

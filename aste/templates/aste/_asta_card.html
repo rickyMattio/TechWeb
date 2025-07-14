@@ -12,24 +12,31 @@
             <h5 class="card-title">{{ asta.titolo }}</h5>
             <p class="card-text">{{ asta.descrizione|truncatewords:15 }}</p>
             <p class="card-text"><small class="text-muted">Scade il: {{ asta.data_fine|date:"d M Y, H:i" }}</small></p>
-
-            {% with offerta_top=asta.offerte.first %}
-                {% if offerta_top %}
-                    {% if user.is_authenticated and asta.pk in aste_vincenti_utente and asta in aste_list%}
-                        <p class="text-success font-weight-bold">Stai vincendo tu!</p>
-                    {% elif asta.stato != 'conclusa' %}
-                        <p><small>Offerta più alta: €{{ offerta_top.importo }}</small></p>
+            {% if asta.offerte.exists %}
+                <p class="card-text">
+                    Prezzo attuale: <strong>€{{ asta.prezzo_attuale|floatformat:2 }}</strong>
+                </p>
+            {% else %}
+                <p class="card-text">
+                    Prezzo Base: <strong>€{{ asta.prezzo_base|floatformat:2 }}</strong>
+                </p>
+            {% endif %}
+            
+           {% with offerta_top=asta.offerte.first %}
+                {% if asta.stato == 'conclusa' %}
+                    <p class="text-danger font-weight-bold">Asta Conclusa!</p>
+                    {% if offerta_top %}
+                        <p><small>Vinta da: {{ offerta_top.acquirente.username }}</small></p>
                     {% else %}
-                        <p><small>Offerta più alta: €{{ offerta_top.importo }}</small></p>
-                        <p class="text-danger font-weight-bold">Asta Conclusa!</p>
-                        {% with vincitore=asta.offerte.first.acquirente %}
-                            {% if vincitore %}
-                                <p><small>Vinta da: {{ vincitore.username }}</small></p>
-                            {% else %}
-                                <p><small>Nessuna offerta ricevuta.</small></p>
-                            {% endif %}
-                        {% endwith %}
+                        <p><small>Nessuna offerta ricevuta.</small></p>
                     {% endif %}
+
+                {% elif user.is_authenticated and asta.pk in aste_vincenti_utente %}
+                    <p class="text-success font-weight-bold">Stai vincendo tu!</p>
+
+                {% elif offerta_top %}
+                    <p><small>Ultima offerta di: {{ offerta_top.acquirente.username }}</small></p>
+                
                 {% endif %}
             {% endwith %}
 
