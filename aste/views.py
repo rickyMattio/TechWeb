@@ -38,24 +38,33 @@ class HomeAsteView(ListView):
         # prendiamo solo quelle 'attive' e le ordiniamo per data di fine.
         # Ora anche la homepage calcola il prezzo_attuale per ogni asta,
         # usando il prezzo base come default se non ci sono offerte.
-        return Asta.objects.filter(stato='attiva').annotate(
-            prezzo_attuale=Case(
-                When(offerte__importo__isnull=False, then=Max('offerte__importo')),
-                default=F('prezzo_base'),
-                output_field=DecimalField()
-            )
-        ).order_by('data_fine')
+        # Usiamo Coalesce per gestire il caso in cui non ci siano offerte, usando il prezzo_base.
+        
+        aste_con_prezzo = Asta.objects.filter(stato='attiva').annotate(
+            prezzo_attuale=Coalesce(Max('offerte__importo'), F('prezzo_base'))
+        )
+        # Usiamo Prefetch per caricare in modo efficiente l'offerta più alta per ogni asta.
+        #    Questo farà una sola query aggiuntiva per tutte le offerte, invece di una per asta.
+        offerte_prefetch = Prefetch(
+            'offerte', # Nome del related_name nel modello Asta
+            queryset=Offerta.objects.select_related('acquirente').order_by('-importo'),
+            to_attr='offerte_ordinate' # Salviamo il risultato in un nuovo attributo sull'oggetto asta
+        )
+        
+        return aste_con_prezzo.prefetch_related(offerte_prefetch).order_by('data_fine').distinct()
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         if self.request.user.is_authenticated:
-            # Troviamo gli ID di tutte le aste dove l'offerta più alta è dell'utente corrente.
-            # Usiamo un set per una ricerca veloce nel template.
-            aste_vincenti = set(
-                asta.pk for asta in context['aste_list'] 
-                if asta.offerte.first() and asta.offerte.first().acquirente == self.request.user
-            )
-            context['aste_vincenti_utente'] = aste_vincenti
+            aste_vincenti_utente = set()
+            for asta in context['aste_list']:
+                # `asta.offerte_ordinate` esiste grazie al to_attr nel Prefetch.
+                # Questa operazione NON fa una nuova query al database.
+                if hasattr(asta, 'offerte_ordinate') and asta.offerte_ordinate:
+                    offerta_top = asta.offerte_ordinate[0]
+                    if offerta_top.acquirente == self.request.user:
+                        aste_vincenti_utente.add(asta.pk)
+            context['aste_vincenti_utente'] = aste_vincenti_utente
         return context
     
 
@@ -418,7 +427,7 @@ class RisultatiRicercaView(ListView):
                     queryset = queryset.order_by(ordina_per)
             else:
                 queryset = queryset.order_by('data_fine')
-        return queryset   
+        return queryset.distinct()   
     
     
     def get_context_data(self, **kwargs):
