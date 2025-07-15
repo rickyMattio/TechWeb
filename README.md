@@ -2,6 +2,8 @@
 
 Questo progetto è una piattaforma web per la gestione di aste online, sviluppata come progetto per il corso di Tecnologie Web. Permette agli utenti di registrarsi come venditori o acquirenti, creare aste, fare offerte e lasciare feedback.
 
+Nel pdf è presente una presentazione generale del progetto.
+
 ## Tecnologie Utilizzate
 
 * **Backend:** Python, Django, Django Channels
@@ -66,6 +68,8 @@ Assicurati di avere installato sul tuo sistema:
 # Online Auction Platform (ASTEROY)
 
 This project is a web platform for managing online auctions, developed as a project for the Web Technologies course. It allows users to register as sellers or buyers, create auctions, place bids, and leave feedback.
+
+The PDF contains a general presentation of the project.
 
 ## Technologies Used
 
